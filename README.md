@@ -37,6 +37,8 @@ You must me in the int the `src/` directory to run this command:
 $ python main.py
 ```
 
-
-
-
+## Deactivate the virutalenv
+After running your virtual env, deactivate your virtual env:
+```
+$ deactivate
+```
