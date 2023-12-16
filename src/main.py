@@ -8,18 +8,6 @@ from bs4 import BeautifulSoup
 import re
 import math
 
-
-'''
-features to do:
-	- data per page
-		- locate html tag that displays search results
-		- locate page-nav html-tag
-		- what is the url-string for page number
-			- showpage=2
-		- Classes for Jomashop, Relleb, Watchrecon, DubaiLuxuryWatch, Watchbox (JSON Data)
-	- implement search for each page to be scraped
-'''
-
 class Header:
 	def __init__(self):
 		self.header = {
@@ -32,10 +20,10 @@ class Header:
 		'refere': 'https://www.chrono24.com',
 		'cookie': """your cookie value ( you can get that from your web page)"""}
 
-	def getHeader(self):
+	def getHeader(self) -> dict:
 		return self.header
 
-	def setHeader(self, header):
+	def setHeader(self, header) -> None:
 		self.header = header
 
 
@@ -57,27 +45,6 @@ class Driver:
 	def getDriver(self):
 		return self.driver
 
-class Chronext(Driver):
-	def __init__(self):
-		super().__init__()
-		self.source = "https://www.chronext.ch/search?s%5Bsearch%5D%5Bq%5D="
-		self.payload = {}
-
-	# getter and setter
-
-class Gebauer(Driver):
-	def __init__(self):
-		super().__init__()
-		self.source = "https://marcgebauer.com/search?q="
-		self.payload = {}
-
-	# setter and getter
-
-class Watchfinder(Driver):
-	def __init__(self):
-		super().__init__()
-		self.source = "https://www.watchfinder.ch/search?q="
-		self.payload = {}
 
 def createSoupObject(url : str, header : dict, parser : str) -> BeautifulSoup:
 	req = requests.get(url, headers=header)
@@ -103,7 +70,7 @@ class Chrono(Driver):
 	def getHeader(self) -> dict:
 		return self.header
 
-	def setHeader(self, header)	-> None:
+	def setHeader(self, header : dict)	-> None:
 		self.header = header
 
 	def getPayload(self) -> dict:
@@ -124,17 +91,6 @@ class Chrono(Driver):
 	def setParser(self, parser : str):
 		self.parser = parser
 
-
-	# def getListings(self) -> int:
-	# 	parser = "html.parser"
-	# 	req = requests.get(self.getUrlSearchResults(self.getPayload()), headers=self.getHeader())
-	# 	soup = BeautifulSoup(req.text, parser)
-	# 	string3 = soup.find("strong", string=re.compile("listings$"))
-	# 	bsObject = BeautifulSoup(str(string3), parser)
-	# 	text = bsObject.get_text()
-	# 	# return int(re.findall("\\d+", text)[0])
-	# 	print(text)
-
 	def getListingSize(self) -> int:
 		result = []
 		while len(result) == 0:
@@ -142,19 +98,22 @@ class Chrono(Driver):
 			result = soup.find_all("strong", string=re.compile("listings$"))
 			if len(result) != 0:
 				break
-		size : str = result[0].text.split(" ")[0]
-		size : int = int(size)
-		return size
+		if result:
+			size_str = result[0].text.split(" ")[0]
+			size_str = size_str.replace(',', '')  # Remove commas from the string
+			return int(size_str)
+		else:
+			return 0  # Return 0 if no listing size found
 
-
-	def calculatePages(self):
-		# calculate pages to be scraped
+	def calculatePages(self) -> int:
 		results = self.getListingSize()
+		if results is None or results == 0:
+			return 0  # Return 0 to indicate no pages to process
 		pageSize = self.getPayload()['pageSize']
 		pages = math.ceil(results / pageSize)
 		return pages
 
-	def getUrlSearchResults(self, payload):
+	def getUrlSearchResults(self, payload : dict):
 		assert len(payload) != 0
 		if self.getLenFirstEntry() == 0:
 			print("Wich reference you are looking for?\n")
@@ -189,7 +148,6 @@ class Chrono(Driver):
 			results.append(self.loadOffers())
 		return results
 
-
 	def tableOffersRaw(self):
 		dict_data = self.loadOffers()
 		return pd.json_normalize(dict_data)
@@ -200,6 +158,7 @@ class Chrono(Driver):
 			dict_data = self.loadAllOffers()
 		else:
 			dict_data = self.loadOffers()
+			print(dict_data)
 		table = pd.json_normalize(dict_data)
 		table = table.dropna(axis=0)
 		try:
@@ -208,38 +167,83 @@ class Chrono(Driver):
 			print('Price column not available, hence the price is on request')
 		return table
 
-	def getLenFirstEntry(self):
-		print(len(self.payload.get('query')))
+	def getLenFirstEntry(self) -> int:
+		return len(self.payload.get('query'))
 
-	def updateQuery(self, query):
+	def updateQuery(self, query : str) -> None:
 		self.payload.update({'query' : query})
 
-	def updatePage(self, page):
+	def updatePage(self, page : int) -> None:
 		self.payload.update({'showPage' : page})
 
-def main():
-	chrono = Chrono()
-	chrono.getLenFirstEntry()
-	print(chrono.getUrlSearchResults(chrono.getPayload()))
-	# print(chrono.getPayload())
+class Menu:
+    def __init__(self):
+        self.choice = None
 
-	# Submariner 126610LN
-	chrono.updateQuery("126610LN")
-	# chrono.updatePage(2)
-	# print(chrono.getUrlSearchResults(chrono.getPayload()))
-	# print(chrono.getPayload())
-	submariner = chrono.tableOffers(all=False)[['name', 'price']]
-	print(submariner)
-	print(submariner.describe())
-	# print(chrono.getListingSize())
-	# print(chrono.calculatePages())
+    def display_options(self) -> None:
+        print("Choose your search type:")
+        print("1. Search by Model Name")
+        print("2. Search by Reference Number")
 
-	# daytona
-	chrono.updateQuery("116500LN")
-	daytona = chrono.tableOffers(all=False)[['name', 'price']]
-	print(daytona.describe())
+    def get_user_choice(self) -> bool:
+        self.choice = input("Enter your choice (1 or 2): ").strip()
+        return self.validate_choice()
 
+    def validate_choice(self) -> bool:
+        return self.choice in ['1', '2']
+
+    def get_search_input(self) -> str:
+        if self.choice == '1':
+            return input("Enter the model name (e.g. Daytona or Cartier Santos): ")
+        elif self.choice == '2':
+            return input("Enter the reference number (e.g. 126610LN): ")
+        return ""
+
+    def get_data_retrieval_choice(self) -> bool:
+        data_choice = input("Do you want to retrieve all data? (yes for all data / no for first page only): ").strip().lower()
+        return data_choice == 'yes'
+
+    def get_save_csv_choice(self) -> str:
+        save_csv = input("Do you want to save this data in a CSV file? (yes/no): ").strip().lower()
+        if save_csv == 'yes':
+            filename = input("Enter a filename for the CSV (without extension): ").strip()
+            return filename if filename else "watch_data"
+        return ""
+
+    def ask_to_continue(self) -> bool:
+        continue_search = input("Do you want to search for another watch? (yes/no): ").strip().lower()
+        return continue_search == 'yes'
+
+def main() -> None:
+    chrono = Chrono()
+    menu = Menu()
+
+    while True:
+        menu.display_options()
+        if not menu.get_user_choice():
+            print("Invalid choice. Please enter 1 or 2.")
+            continue
+
+        search_input = menu.get_search_input()
+        if search_input:
+            chrono.updateQuery(search_input)
+
+            all_data = menu.get_data_retrieval_choice()
+            watch_data = chrono.tableOffers(all=all_data)[['name', 'price']]
+            print(watch_data)
+            print(watch_data.describe())
+
+            filename = menu.get_save_csv_choice()
+            if filename:
+                watch_data.to_csv(filename + '.csv', index=False)
+                print(f"Data saved to {filename}.csv")
+        else:
+            print("No valid input provided.")
+            continue
+
+        if not menu.ask_to_continue():
+            break
 
 if __name__ == "__main__":
-	main()
+    main()
 
