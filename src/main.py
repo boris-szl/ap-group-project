@@ -7,6 +7,9 @@ from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 import re
 import math
+import sys
+import threading
+import time
 
 # Web Scraping Program for Chrono24 Luxury Watches
 # This program uses Selenium WebDriver for automated web browsing, BeautifulSoup for HTML parsing,
@@ -103,46 +106,46 @@ class Driver:
 		self.header = Header().getHeader()
 
 	def getService(self):
-        """
-        Retrieves the service object used by the WebDriver.
-        Returns:
-            Service: The service object for the WebDriver.
-        """
+		"""
+		Retrieves the service object used by the WebDriver.
+		Returns:
+			Service: The service object for the WebDriver.
+		"""
 		return self.service
 
 	def getOption(self):
-        """
-        Retrieves the options set for the Chrome WebDriver.
-        Returns:
-            webdriver.ChromeOptions: The options for the WebDriver.
-        """
+		"""
+		Retrieves the options set for the Chrome WebDriver.
+		Returns:
+			webdriver.ChromeOptions: The options for the WebDriver.
+		"""
 		return self.option
 
 	def setDriver(self):
-        """
-        Creates a new instance of the Chrome WebDriver with the specified service and options.
-        """
+		"""
+		Creates a new instance of the Chrome WebDriver with the specified service and options.
+		"""
 		self.driver = webdriver.Chrome(service=self.getService(), options=self.getOption())
 
 	def getDriver(self):
-        """
-        Retrieves the current instance of the WebDriver.
-        Returns:
-            webdriver.Chrome: The current WebDriver instance.
-        """
+		"""
+		Retrieves the current instance of the WebDriver.
+		Returns:
+		    webdriver.Chrome: The current WebDriver instance.
+		"""
 		return self.driver
 
 
 def createSoupObject(url : str, header : dict, parser : str) -> BeautifulSoup:
-    """
-    Fetches a webpage at the specified URL with the provided headers and creates a BeautifulSoup object for parsing.
-    Parameters:
-        url (str): URL of the webpage to be fetched.
-        header (dict): HTTP headers for the request.
-        parser (str): Parser to be used by BeautifulSoup.
-    Returns:
-        BeautifulSoup: An object to parse and navigate the HTML structure of the page.
-    """
+	"""
+	Fetches a webpage at the specified URL with the provided headers and creates a BeautifulSoup object for parsing.
+	Parameters:
+		url (str): URL of the webpage to be fetched.
+		header (dict): HTTP headers for the request.
+		parser (str): Parser to be used by BeautifulSoup.
+	Returns:
+		BeautifulSoup: An object to parse and navigate the HTML structure of the page.
+	"""
 	req = requests.get(url, headers=header)
 	assert req.status_code == 200, "Error: Status Code is not 200"
 	soup = BeautifulSoup(req.text, parser)
@@ -173,6 +176,7 @@ class Chrono(Driver):
 		self.source = "https://www.chrono24.com/search/index.htm?"
 		self.payload = {'query' : '', 'pageSize' : 120, 'resultview' : 'list', 'showPage' : 1 } # default paylaod´
 		self.searchUrl = "&dosearch=true&searchexplain=false&watchTypes=U&accessoryTypes="
+		self.searchUrl = "&dosearch=true&searchexplain=false&watchTypes=U&accessoryTypes="
 		self.parser = "html.parser"
 
 	def getSource(self) -> str:
@@ -198,6 +202,7 @@ class Chrono(Driver):
 			source (str): The new base URL to be used for Chrono24 search queries.
 		"""
 		self.source = source
+
 
 	def getHeader(self) -> dict:
 		"""
@@ -333,22 +338,22 @@ class Chrono(Driver):
 		return pages
 
 	def getUrlSearchResults(self, payload : dict):
-	    """
-	    Constructs and retrieves the full URL for the search results based on the given payload.
+		"""
+		Constructs and retrieves the full URL for the search results based on the given payload.
 
-	    This method first checks if there is an existing query in the payload. If not, it prompts the
-	    user to input a reference or model name, which is then added to the payload. It then makes
-	    a GET request to the source URL with the updated payload to construct the full URL for search results.
+		This method first checks if there is an existing query in the payload. If not, it prompts the
+		user to input a reference or model name, which is then added to the payload. It then makes
+		a GET request to the source URL with the updated payload to construct the full URL for search results.
 
-	    Parameters:
-	        payload (dict): The search parameters to be included in the query.
+		Parameters:
+			payload (dict): The search parameters to be included in the query.
 
-	    Returns:
-	        str: The full URL containing the search results.
+		Returns:
+			str: The full URL containing the search results.
 
-	    Raises:
-	        AssertionError: If the payload is empty.
-	    """
+		Raises:
+			AssertionError: If the payload is empty.
+		"""
 		assert len(payload) != 0
 		if self.getLenFirstEntry() == 0:
 			print("Wich reference you are looking for?\n")
@@ -462,11 +467,18 @@ class Chrono(Driver):
 		dict_data = {}
 		if all:
 			dict_data = self.loadAllOffers()
+			# print(type(dict_data))
+			# run inspect for debugging purposes, when facing data structure problems during flattening
+			# inspect_data_structure(dict_data)
+			# inspect_non_dict_elements(dict_data, [120])
+			flattened_dict_data = flatten_list_of_dicts(dict_data)
+			table = pd.json_normalize(flattened_dict_data)
+			table = table.dropna(axis=0)
 		else:
 			dict_data = self.loadOffers()
-			print(dict_data)
-		table = pd.json_normalize(dict_data)
-		table = table.dropna(axis=0)
+			# print(dict_data)
+			table = pd.json_normalize(dict_data)
+			table = table.dropna(axis=0)
 		try:
 			table['price'] = table['price'].astype(int)
 		except KeyError as e:
@@ -474,77 +486,77 @@ class Chrono(Driver):
 		return table
 
 	def getLenFirstEntry(self) -> int:
-	   	"""
-        Gets the length of the first entry in the payload. Used to check if a query is set.
-        Returns:
-            int: Length of the first query string in the payload.
-        """
+		"""
+		Gets the length of the first entry in the payload. Used to check if a query is set.
+		Returns:
+		int: Length of the first query string in the payload.
+		"""
 		return len(self.payload.get('query'))
 
 	def updateQuery(self, query : str) -> None:
-        """
-        Updates the search query in the payload.
-        Parameters:
-            query (str): The new search query to be set.
-        """
+		"""
+		Updates the search query in the payload.
+		Parameters:
+		query (str): The new search query to be set.
+		"""
 		self.payload.update({'query' : query})
 
 	def updatePage(self, page : int) -> None:
-        """
-        Updates the payload to request a specific page of search results.
-        Parameters:
-            page (int): The page number to be set in the payload.
-        """
+		"""
+		Updates the payload to request a specific page of search results.
+		Parameters:
+		page (int): The page number to be set in the payload.
+		"""
 		self.payload.update({'showPage' : page})
 
 class Menu:
 	"""
-    Handles user interactions, providing a menu for input and choices.
-    """
-    def __init__(self):
-        """
-        Initializes the Menu with the user's choice set to None.
-        """
-        self.choice = None
+	Handles user interactions, providing a menu for input and choices.
+	"""
+	def __init__(self):
+		"""
+		Initializes the Menu with the user's choice set to None.
+		"""
+		self.choice = None
 
-    def display_options(self) -> None:
-        """
-        Displays the main menu options to the user for choosing the type of search.
-        """
-        print("Choose your search type:")
-        print("1. Search by Model Name")
-        print("2. Search by Reference Number")
+	def display_options(self) -> None:
+		"""
+		Displays the main menu options to the user for choosing the type of search.
+		"""
+		print("Choose your search type:")
+		print("1. Search by Model Name")
+		print("2. Search by Reference Number")
 
-    def get_user_choice(self) -> bool:
-        """
-        Asks the user whether to retrieve data from all pages or just the first page.
-        Returns:
-            bool: True if the user wants all data, False for only the first page.
-        """
-        self.choice = input("Enter your choice (1 or 2): ").strip()
-        return self.validate_choice()
+	def get_user_choice(self) -> bool:
+		"""
+		Asks the user whether to retrieve data from all pages or just the first page.
+		Returns:
+		    bool: True if the user wants all data, False for only the first page.
+		"""
+		self.choice = input("Enter your choice (1 or 2): ").strip()
+		return self.validate_choice()
 
-    def validate_choice(self) -> bool:
-        """
-        Prompts the user to decide if they want to save the data to a CSV file.
-        Returns:
-            str: Filename for the CSV if the user chooses to save, else an empty string.
-        """
-        return self.choice in ['1', '2']
+	def validate_choice(self) -> bool:
+		"""
+		Prompts the user to decide if they want to save the data to a CSV file.
+		Returns:
+		    str: Filename for the CSV if the user chooses to save, else an empty string.
+		"""
+		return self.choice in ['1', '2']
 
-    def get_search_input(self) -> str:
-        """
-        Asks the user whether they want to continue with another search.
-        Returns:
-            bool: True if the user wants to continue, False otherwise.
-        """
-        if self.choice == '1':
-            return input("Enter the model name (e.g. Daytona or Cartier Santos): ")
-        elif self.choice == '2':
-            return input("Enter the reference number (e.g. 126610LN): ")
-        return ""
+	def get_search_input(self) -> str:
+		"""
+		Asks the user whether they want to continue with another search.
+		Returns:
+		bool: True if the user wants to continue, False otherwise.
+		"""
+		if self.choice == '1':
+			return input("Enter the model name (e.g. Daytona or Cartier Santos): ")
+		elif self.choice == '2':
+			return input("Enter the reference number (e.g. 126610LN): ")
+		return ""
 
-    def get_data_retrieval_choice(self) -> bool:
+	def get_data_retrieval_choice(self) -> bool:
 		"""
 		Asks the user to choose whether to retrieve all available data or just the data from the first page.
 
@@ -555,10 +567,10 @@ class Menu:
 		Returns:
 			bool: True if the user wants to retrieve all data; False if the user only wants data from the first page.
 		"""
-        data_choice = input("Do you want to retrieve all data? (yes for all data / no for first page only): ").strip().lower()
-        return data_choice == 'yes'
+		data_choice = input("Do you want to retrieve all data? (yes for all data / no for first page only): ").strip().lower()
+		return data_choice == 'yes'
 
-    def get_save_csv_choice(self) -> str:
+	def get_save_csv_choice(self) -> str:
 		"""
 		Prompts the user to decide if they want to save the fetched data to a CSV file and, if so, asks for a filename.
 
@@ -567,15 +579,15 @@ class Menu:
 		If the user chooses not to save the data, an empty string is returned.
 
 		Returns:
-			str: The filename for the CSV file, a default name if no name is provided, or an empty string if not saving.
+		str: The filename for the CSV file, a default name if no name is provided, or an empty string if not saving.
 		"""
-        save_csv = input("Do you want to save this data in a CSV file? (yes/no): ").strip().lower()
-        if save_csv == 'yes':
-            filename = input("Enter a filename for the CSV (without extension): ").strip()
-            return filename if filename else "watch_data"
-        return ""
+		save_csv = input("Do you want to save this data in a CSV file? (yes/no): ").strip().lower()
+		if save_csv == 'yes':
+			filename = input("Enter a filename for the CSV (without extension): ").strip()
+			return filename if filename else "watch_data"
+		return ""
 
-    def ask_to_continue(self) -> bool:
+	def ask_to_continue(self) -> bool:
 		"""
 		Asks the user if they wish to perform another search or terminate the program.
 
@@ -586,8 +598,126 @@ class Menu:
 		Returns:
 		bool: True if the user wants to continue with another search; False if the user wants to exit the program.
 		"""
-        continue_search = input("Do you want to search for another watch? (yes/no): ").strip().lower()
-        return continue_search == 'yes'
+		continue_search = input("Do you want to search for another watch? (yes/no): ").strip().lower()
+		return continue_search == 'yes'
+
+def show_spinner(stop_event):
+	"""
+	Displays a spinning loading animation in the console.
+
+	Args:
+	stop_event (threading.Event): An event object used to control the termination of the spinner.
+
+	This function runs in a loop, displaying a spinner animation in the console. The loop continues
+	until the stop_event is set from another thread. The animation is achieved by cycling through
+	a list of characters that simulate a spinning motion when printed sequentially.
+	"""
+	spinner = ['|', '/', '-', '\\']
+	idx = 0
+	while not stop_event.is_set():
+		sys.stdout.write('\rLoading... ' + spinner[idx % len(spinner)])
+		sys.stdout.flush()
+		idx += 1
+		time.sleep(0.1)
+	sys.stdout.write('\n')
+
+def start_spinner(stop_event):
+	"""
+	Starts a new thread to run the spinner animation.
+
+	Args:
+	stop_event (threading.Event): An event object used to control the termination of the spinner.
+
+	This function creates and starts a new thread dedicated to running the spinner animation.
+	The thread runs the 'show_spinner' function with the provided stop_event.
+
+	Returns:
+		threading.Thread: The thread object running the spinner animation.
+	"""
+	spinner_thread = threading.Thread(target=show_spinner, args=(stop_event,))
+	spinner_thread.start()
+	return spinner_thread
+
+def stop_spinner(stop_event, spinner_thread):
+	"""
+	Stops the spinner animation by setting the stop event and waits for the spinner thread to finish.
+
+	Args:
+	stop_event (threading.Event): The event object used to signal the spinner thread to stop.
+	spinner_thread (threading.Thread): The thread object running the spinner animation.
+
+	This function sets the stop_event, signaling the spinner thread to terminate its loop.
+	It then waits (joins) for the spinner thread to finish executing before continuing.
+	"""
+	stop_event.set()
+	spinner_thread.join()
+
+def inspect_data_structure(data_list, sample_size=5):
+	"""
+	Inspects the structure of the elements in the provided list.
+
+	Args:
+	data_list (list): The list to be inspected.
+	sample_size (int): Number of elements to display for inspection.
+
+	Returns:
+	None
+	"""
+	# Check if all elements in the list are dictionaries
+	all_dicts = all(isinstance(item, dict) for item in data_list)
+	print("All elements are dictionaries:", all_dicts)
+
+	# If not all elements are dictionaries, identify the non-dictionary elements
+	if not all_dicts:
+		print("Non-dictionary elements found at indices:")
+		for index, item in enumerate(data_list):
+			if not isinstance(item, dict):
+				print(f"  Index {index}: Type {type(item).__name__}")
+
+	# If all elements are dictionaries, print the first few elements
+	elif data_list:
+		print("Inspecting the first few elements:")
+		for item in data_list[:sample_size]:
+			print(item)
+	else:
+		print("The list is empty.")
+
+def inspect_non_dict_elements(data_list, indices):
+	"""
+	Inspects the non-dictionary elements in the provided list at specified indices.
+
+	Args:
+	data_list (list): The list to be inspected.
+	indices (list): List of indices of the non-dictionary elements.
+
+	Returns:
+	None
+	"""
+	print("Inspecting non-dictionary elements at specified indices:")
+	for index in indices:
+		if index < len(data_list):
+			print(f"Index {index}:")
+			print(data_list[index])
+		else:
+			print(f"Index {index} is out of range.")
+
+def flatten_list_of_dicts(data_list):
+	"""
+	Flattens a list of dictionaries and lists containing dictionaries into a single list of dictionaries.
+
+	Args:
+	data_list (list): The list to be flattened.
+
+	Returns:
+	list: A flattened list of dictionaries.
+	"""
+	flattened_list = []
+	for element in data_list:
+		if isinstance(element, dict):
+			flattened_list.append(element)
+		elif isinstance(element, list) and all(isinstance(item, dict) for item in element):
+			flattened_list.extend(element)
+	return flattened_list
 
 def main() -> None:
 	"""
@@ -614,35 +744,53 @@ def main() -> None:
 		- Optionally save data to a CSV file as per user's request.
 		- Break the loop and exit the program when the user chooses not to continue.
 	"""
-    chrono = Chrono()
-    menu = Menu()
 
-    while True:
-        menu.display_options()
-        if not menu.get_user_choice():
-            print("Invalid choice. Please enter 1 or 2.")
-            continue
+	# Start the spinner for initializing for setting up
+	stop_event = threading.Event()
+	spinner_thread = start_spinner(stop_event)
+	
+	chrono = Chrono()
 
-        search_input = menu.get_search_input()
-        if search_input:
-            chrono.updateQuery(search_input)
+	# Stop the spinner after driver is set up
+	stop_spinner(stop_event, spinner_thread)
 
-            all_data = menu.get_data_retrieval_choice()
-            watch_data = chrono.tableOffers(all=all_data)[['name', 'price']]
-            print(watch_data)
-            print(watch_data.describe())
+	menu = Menu()
+	while True:
+		menu.display_options()
+		if not menu.get_user_choice():
+			print("Invalid choice. Please enter 1 or 2.")
+			continue
 
-            filename = menu.get_save_csv_choice()
-            if filename:
-                watch_data.to_csv(filename + '.csv', index=False)
-                print(f"Data saved to {filename}.csv")
-        else:
-            print("No valid input provided.")
-            continue
+		search_input = menu.get_search_input()
+		if search_input:
+			chrono.updateQuery(search_input)
+			all_data = menu.get_data_retrieval_choice()
 
-        if not menu.ask_to_continue():
-            break
+			# Start the spinner thread before fetching data
+			stop_event = threading.Event()
+			spinner_thread = start_spinner(stop_event)
+
+			# Fetch watch data
+			watch_data = chrono.tableOffers(all=all_data)[['name', 'price']]
+
+			# Stop the spinner after data is fetched
+			stop_spinner(stop_event, spinner_thread)		
+
+			print(watch_data)
+			print(watch_data.describe())
+
+			filename = menu.get_save_csv_choice()
+			if filename:
+				watch_data.to_csv(filename + '.csv', index=False)
+				print(f"Data saved to {filename}.csv")
+		else:
+			print("No valid input provided.")
+			continue
+
+		if not menu.ask_to_continue():
+			print("Programme exited. Thanks for using!")
+			break
 
 if __name__ == "__main__":
-    main()
+	main()
 
