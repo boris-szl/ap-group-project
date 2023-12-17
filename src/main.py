@@ -468,14 +468,15 @@ class Chrono(Driver):
 		if all:
 			dict_data = self.loadAllOffers()
 			# print(type(dict_data))
-			inspect_data_structure(dict_data)
-			inspect_non_dict_elements(dict_data, [120])
+			# run inspect for debugging purposes, when facing data structure problems during flattening
+			# inspect_data_structure(dict_data)
+			# inspect_non_dict_elements(dict_data, [120])
 			flattened_dict_data = flatten_list_of_dicts(dict_data)
 			table = pd.json_normalize(flattened_dict_data)
 			table = table.dropna(axis=0)
 		else:
 			dict_data = self.loadOffers()
-			print(dict_data)
+			# print(dict_data)
 			table = pd.json_normalize(dict_data)
 			table = table.dropna(axis=0)
 		try:
@@ -601,6 +602,16 @@ class Menu:
 		return continue_search == 'yes'
 
 def show_spinner(stop_event):
+	"""
+	Displays a spinning loading animation in the console.
+
+	Args:
+	stop_event (threading.Event): An event object used to control the termination of the spinner.
+
+	This function runs in a loop, displaying a spinner animation in the console. The loop continues
+	until the stop_event is set from another thread. The animation is achieved by cycling through
+	a list of characters that simulate a spinning motion when printed sequentially.
+	"""
 	spinner = ['|', '/', '-', '\\']
 	idx = 0
 	while not stop_event.is_set():
@@ -609,6 +620,37 @@ def show_spinner(stop_event):
 		idx += 1
 		time.sleep(0.1)
 	sys.stdout.write('\n')
+
+def start_spinner(stop_event):
+	"""
+	Starts a new thread to run the spinner animation.
+
+	Args:
+	stop_event (threading.Event): An event object used to control the termination of the spinner.
+
+	This function creates and starts a new thread dedicated to running the spinner animation.
+	The thread runs the 'show_spinner' function with the provided stop_event.
+
+	Returns:
+		threading.Thread: The thread object running the spinner animation.
+	"""
+	spinner_thread = threading.Thread(target=show_spinner, args=(stop_event,))
+	spinner_thread.start()
+	return spinner_thread
+
+def stop_spinner(stop_event, spinner_thread):
+	"""
+	Stops the spinner animation by setting the stop event and waits for the spinner thread to finish.
+
+	Args:
+	stop_event (threading.Event): The event object used to signal the spinner thread to stop.
+	spinner_thread (threading.Thread): The thread object running the spinner animation.
+
+	This function sets the stop_event, signaling the spinner thread to terminate its loop.
+	It then waits (joins) for the spinner thread to finish executing before continuing.
+	"""
+	stop_event.set()
+	spinner_thread.join()
 
 def inspect_data_structure(data_list, sample_size=5):
 	"""
@@ -703,15 +745,14 @@ def main() -> None:
 		- Break the loop and exit the program when the user chooses not to continue.
 	"""
 
-
+	# Start the spinner for initializing for setting up
 	stop_event = threading.Event()
-	spinner_thread = threading.Thread(target=show_spinner, args=(stop_event,))
-	spinner_thread.start()
+	spinner_thread = start_spinner(stop_event)
 	
 	chrono = Chrono()
 
-	stop_event.set()
-	spinner_thread.join()
+	# Stop the spinner after driver is set up
+	stop_spinner(stop_event, spinner_thread)
 
 	menu = Menu()
 	while True:
@@ -724,7 +765,17 @@ def main() -> None:
 		if search_input:
 			chrono.updateQuery(search_input)
 			all_data = menu.get_data_retrieval_choice()
+
+			# Start the spinner thread before fetching data
+			stop_event = threading.Event()
+			spinner_thread = start_spinner(stop_event)
+
+			# Fetch watch data
 			watch_data = chrono.tableOffers(all=all_data)[['name', 'price']]
+
+			# Stop the spinner after data is fetched
+			stop_spinner(stop_event, spinner_thread)		
+
 			print(watch_data)
 			print(watch_data.describe())
 
@@ -737,6 +788,7 @@ def main() -> None:
 			continue
 
 		if not menu.ask_to_continue():
+			print("Programme exited. Thanks for using!")
 			break
 
 if __name__ == "__main__":
