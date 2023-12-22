@@ -6,6 +6,9 @@ This script scrapes listing data based on the first page on Chrono24 for an arbi
 Subsequently the program statistically describes the data based on the entries, giving infromation about the 
 descriptive nature, including location parameters such as min, max, mean; about the distribution such as std and quartiles. 
 
+# Project Documentation
+The project documentation consists of the comments within the source code and an appendix in a pdf file format.
+
 # Setup project
 ## Clone the project using git https or ssh
 ```
